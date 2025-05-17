@@ -67,8 +67,9 @@ mod tests {
     #[tokio::test]
     async fn test_discord_notification() {
         let webhook_url = "https://discord.com/api/webhooks/1277781729754484777/AUQiUl_M_suiJ8u7QIDOab1gft7_KFnTXwX93UQZmqPWKhqgNu7a7o0rLe_Zb71EgC-R";
-        let message = "Test notification from Rust!";
-        let result = send_discord_notification(webhook_url, message).await;
+        let discord_id = dotenvy::var("DISCORD_ID").expect("DISCORD_ID not set");
+        let message = format!("{} Test notification from Rust!", discord_id);
+        let result = send_discord_notification(webhook_url, &message).await;
         assert!(
             result.is_ok(),
             "Expected notification to be sent successfully"
