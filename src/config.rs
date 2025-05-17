@@ -11,6 +11,7 @@ pub struct Config {
 #[derive(Debug, Deserialize)]
 pub struct ConfigOptions {
     pub timeout_secs: u64,
+    pub check_interval_secs: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -36,6 +37,7 @@ mod tests {
         let toml_content = r#"
             [config]
             timeout_secs = 5
+            check_interval_secs = 60
 
             [sites]
             urls = [
@@ -54,6 +56,7 @@ mod tests {
 
         // Assertions
         assert_eq!(config.config.timeout_secs, 5);
+        assert_eq!(config.config.check_interval_secs, 60);
         assert_eq!(config.sites.urls.len(), 3);
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
