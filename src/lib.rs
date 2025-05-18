@@ -1,4 +1,5 @@
 use reqwest::Client;
+use serde::Serialize;
 use std::time::Duration;
 use tokio::time;
 
@@ -47,14 +48,19 @@ pub async fn monitor_websites(urls: Vec<String>, timeout_secs: u64, check_interv
     }
 }
 
+#[derive(Serialize)]
+struct DiscordMessage {
+    content: String,
+}
+
 pub async fn send_discord_notification(
     webhook_url: &str,
     message: &str,
 ) -> Result<(), reqwest::Error> {
     let client = Client::new();
-    let payload = serde_json::json!({
-        "content": message,
-    });
+    let payload = DiscordMessage {
+        content: message.to_string(),
+    };
 
     client.post(webhook_url).json(&payload).send().await?;
     Ok(())

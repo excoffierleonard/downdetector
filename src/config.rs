@@ -1,6 +1,5 @@
 use serde::Deserialize;
-use std::fs;
-use std::path::Path;
+use std::{fs, path::Path};
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
@@ -19,10 +18,12 @@ pub struct SiteList {
     pub urls: Vec<String>,
 }
 
-pub fn load_config<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
-    let content = fs::read_to_string(path)?;
-    let config: Config = toml::from_str(&content)?;
-    Ok(config)
+impl Config {
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
+        let content = fs::read_to_string(path)?;
+        let config: Config = toml::from_str(&content)?;
+        Ok(config)
+    }
 }
 
 #[cfg(test)]
@@ -52,7 +53,7 @@ mod tests {
         write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
 
         // Parse the config
-        let config = load_config(temp_file.path()).expect("Failed to parse config");
+        let config = Config::load(temp_file.path()).expect("Failed to parse config");
 
         // Assertions
         assert_eq!(config.config.timeout_secs, 5);

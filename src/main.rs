@@ -1,11 +1,10 @@
-use downdetector::config;
-use downdetector::monitor_websites;
+use downdetector::{config::Config, monitor_websites};
 use std::process;
 
 #[tokio::main]
 async fn main() {
     // Load configuration from config.toml file
-    let config = match config::load_config("config.toml") {
+    let config = match Config::load("config.toml") {
         Ok(config) => config,
         Err(err) => {
             eprintln!("Error loading configuration: {}", err);
