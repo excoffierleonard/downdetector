@@ -1,0 +1,10 @@
+[config]
+timeout_secs = 5
+check_interval_secs = 60
+
+[sites]
+urls = [
+    "https://www.google.com",
+    "https://www.rust-lang.org",
+    "https://invalid.rust",
+]

@@ -1,10 +1,20 @@
 [config]
 timeout_secs = 5
 check_interval_secs = 60
+discord_id = "330932247538434048"
+webhook_url = "https://discord.com/api/webhooks/1277781729754484777/AUQiUl_M_suiJ8u7QIDOab1gft7_KFnTXwX93UQZmqPWKhqgNu7a7o0rLe_Zb71EgC-R"
 
 [sites]
+# Maybe also handle the domain name directly and not also the https ectension
 urls = [
-    "https://www.google.com",
-    "https://www.rust-lang.org",
-    "https://invalid.rust",
+    "https://jisoonet.com",
+    "https://ai.jisoonet.com",
+    "https://backgroundremover.jisoonet.com",
+    "https://cloud.jisoonet.com",
+    "https://git.jisoonet.com",
+    "https://tv.jisoonet.com",
+    "https://videocompressor.jisoonet.com",
+    "https://warden.jisoonet.com",
+    "https://mcstack.excoffierleonard.com",
+    "https://excoffierleonard.com",
 ]
