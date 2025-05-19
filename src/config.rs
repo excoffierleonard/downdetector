@@ -3,18 +3,19 @@ use std::{fs, path::Path};
 
 use crate::errors::Error;
 
-#[derive(Debug, Deserialize)]
+/// Finalized runtime config — no more `Option`
+#[derive(Debug)]
 pub struct Config {
     pub config: ConfigOptions,
     pub sites: SiteList,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct ConfigOptions {
     pub timeout_secs: u64,
     pub check_interval_secs: u64,
-    pub discord_id: Option<String>,
-    pub webhook_url: Option<String>,
+    pub discord_id: String,
+    pub webhook_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -22,22 +23,47 @@ pub struct SiteList {
     pub urls: Vec<String>,
 }
 
+/// Raw version for TOML deserialization — can contain missing fields
+#[derive(Debug, Deserialize)]
+struct RawConfig {
+    pub config: RawConfigOptions,
+    pub sites: SiteList,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawConfigOptions {
+    pub timeout_secs: u64,
+    pub check_interval_secs: u64,
+    pub discord_id: Option<String>,
+    pub webhook_url: Option<String>,
+}
+
 impl Config {
     pub fn load(path: &Path) -> Result<Config, Error> {
         let content = fs::read_to_string(path)?;
-        let mut config: Config = toml::from_str(&content)?;
+        let raw: RawConfig = toml::from_str(&content)?;
 
-        // if discord_id is not set uuse env with dotenvy
-        if config.config.discord_id.is_none() {
-            config.config.discord_id = Some(dotenvy::var("DISCORD_ID")?);
-        }
+        let discord_id = raw
+            .config
+            .discord_id
+            .or_else(|| dotenvy::var("DISCORD_ID").ok())
+            .ok_or_else(|| Error::Config("Missing discord_id in file or env".into()))?;
 
-        // if webhook_url is not set use env with dotenvy
-        if config.config.webhook_url.is_none() {
-            config.config.webhook_url = Some(dotenvy::var("WEBHOOK_URL")?);
-        }
+        let webhook_url = raw
+            .config
+            .webhook_url
+            .or_else(|| dotenvy::var("WEBHOOK_URL").ok())
+            .ok_or_else(|| Error::Config("Missing webhook_url in file or env".into()))?;
 
-        Ok(config)
+        Ok(Config {
+            config: ConfigOptions {
+                timeout_secs: raw.config.timeout_secs,
+                check_interval_secs: raw.config.check_interval_secs,
+                discord_id,
+                webhook_url,
+            },
+            sites: raw.sites,
+        })
     }
 }
 
@@ -79,10 +105,10 @@ mod tests {
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
         assert_eq!(config.sites.urls[2], "https://invalid.url");
-        assert_eq!(config.config.discord_id, Some("1234567890".to_string()));
+        assert_eq!(config.config.discord_id, "1234567890".to_string());
         assert_eq!(
             config.config.webhook_url,
-            Some("https://discord.com/api/webhooks/1234567890/abcdefg".to_string())
+            "https://discord.com/api/webhooks/1234567890/abcdefg".to_string()
         );
     }
 }

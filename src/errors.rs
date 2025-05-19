@@ -10,4 +10,6 @@ pub enum Error {
     EnvVarNotSet(#[from] dotenvy::Error),
     #[error("HTTP request error: {0}")]
     HttpRequest(#[from] reqwest::Error),
+    #[error("Configuration error: {0}")]
+    Config(String),
 }

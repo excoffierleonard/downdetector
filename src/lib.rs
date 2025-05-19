@@ -62,15 +62,10 @@ pub async fn monitor_websites(config_path: &str) {
             println!("{}: {}", url, status_text);
 
             if !status {
-                let message = format!(
-                    "<@{}> Alert: {} is DOWN!",
-                    config.config.discord_id.as_ref().unwrap(),
-                    url
-                );
+                let message = format!("<@{}> Alert: {} is DOWN!", &config.config.discord_id, url);
 
                 if let Err(err) =
-                    send_discord_notification(config.config.webhook_url.as_ref().unwrap(), &message)
-                        .await
+                    send_discord_notification(&config.config.webhook_url, &message).await
                 {
                     eprintln!("Failed to send Discord notification: {}", err);
                 }
