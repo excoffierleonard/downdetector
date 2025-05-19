@@ -108,6 +108,7 @@ dependencies = [
  "reqwest",
  "serde",
  "tempfile",
+ "thiserror",
  "tokio",
  "toml",
 ]

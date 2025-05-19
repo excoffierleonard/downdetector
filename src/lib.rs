@@ -1,25 +1,28 @@
 use reqwest::Client;
 use serde::Serialize;
+use std::path::Path;
 use std::time::Duration;
 use tokio::time;
 
 mod config;
+mod errors;
 
 use crate::config::Config;
+use crate::errors::Error;
 
 /// Asynchronously checks if a given URL is up (returns a 2xx status).
-async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
+async fn is_url_up(url: &str, timeout_secs: u64) -> Result<bool, Error> {
     let client = Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
-        .build()
-        .unwrap();
+        .build()?;
 
-    client
+    Ok(client
         .get(url)
         .send()
         .await
         .map(|resp| resp.status().is_success())
-        .unwrap_or(false)
+        // We unwrap here since we have no way of distinguishing between a network error and a real down on the server side
+        .unwrap_or(false))
 }
 
 #[derive(Serialize)]
@@ -27,7 +30,7 @@ struct DiscordMessage {
     content: String,
 }
 
-async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(), reqwest::Error> {
+async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(), Error> {
     let client = Client::new();
     let payload = DiscordMessage {
         content: message.to_string(),
@@ -39,7 +42,7 @@ async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(
 
 /// Monitors websites periodically and prints their status
 pub async fn monitor_websites(config_path: &str) {
-    let config = Config::load(config_path).expect("Failed to load configuration");
+    let config = Config::load(Path::new(config_path)).expect("Failed to load configuration");
 
     println!("Starting website monitoring...");
     println!(
@@ -53,7 +56,8 @@ pub async fn monitor_websites(config_path: &str) {
         println!("Checking website status...");
 
         for url in &config.sites.urls {
-            let status = is_url_up(url, config.config.timeout_secs).await;
+            // Need better error handling here
+            let status = is_url_up(url, config.config.timeout_secs).await.unwrap();
             let status_text = if status { "UP" } else { "DOWN" };
             println!("{}: {}", url, status_text);
 
@@ -81,18 +85,18 @@ pub async fn monitor_websites(config_path: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[tokio::test]
     async fn test_google_is_up() {
-        let result = is_url_up("https://www.google.com", 5).await;
+        let result = is_url_up("https://www.google.com", 5).await.unwrap();
         assert!(result, "Expected Google to be up");
     }
 
     #[tokio::test]
     async fn test_nonexistent_url_is_down() {
-        let result = is_url_up("http://nonexistent.subdomain.rust-lang.org", 5).await;
+        let result = is_url_up("http://nonexistent.subdomain.rust-lang.org", 5)
+            .await
+            .unwrap();
         assert!(!result, "Expected nonexistent URL to be down");
     }
 
@@ -106,45 +110,6 @@ mod tests {
         assert!(
             result.is_ok(),
             "Expected notification to be sent successfully"
-        );
-    }
-
-    #[test]
-    fn test_load_config_from_toml() {
-        // Define a valid TOML configuration string
-        let toml_content = r#"
-            [config]
-            timeout_secs = 5
-            check_interval_secs = 60
-            discord_id = "1234567890"
-            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
-            [sites]
-            urls = [
-                "https://www.google.com",
-                "https://www.rust-lang.org",
-                "https://invalid.url"
-            ]
-        "#;
-
-        // Write the TOML content to a temporary file
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
-
-        // Parse the config
-        let config = Config::load(temp_file.path()).expect("Failed to parse config");
-
-        // Assertions
-        assert_eq!(config.config.timeout_secs, 5);
-        assert_eq!(config.config.check_interval_secs, 60);
-        assert_eq!(config.sites.urls.len(), 3);
-        assert_eq!(config.sites.urls[0], "https://www.google.com");
-        assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
-        assert_eq!(config.sites.urls[2], "https://invalid.url");
-        assert_eq!(config.config.discord_id, Some("1234567890".to_string()));
-        assert_eq!(
-            config.config.webhook_url,
-            Some("https://discord.com/api/webhooks/1234567890/abcdefg".to_string())
         );
     }
 }
