@@ -25,6 +25,8 @@ async fn main() {
         config.sites.urls,
         config.config.timeout_secs,
         config.config.check_interval_secs,
+        config.config.discord_id.unwrap(),
+        config.config.webhook_url.unwrap(),
     )
     .await;
 }

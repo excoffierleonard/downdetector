@@ -21,7 +21,13 @@ pub async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
 }
 
 /// Monitors websites periodically and prints their status
-pub async fn monitor_websites(urls: Vec<String>, timeout_secs: u64, check_interval_secs: u64) {
+pub async fn monitor_websites(
+    urls: Vec<String>,
+    timeout_secs: u64,
+    check_interval_secs: u64,
+    discord_id: String,
+    webhook_url: String,
+) {
     loop {
         println!("Checking website status...");
 
@@ -31,11 +37,7 @@ pub async fn monitor_websites(urls: Vec<String>, timeout_secs: u64, check_interv
             println!("{}: {}", url, status_text);
 
             if !status {
-                let discord_id =
-                    dotenvy::var("DISCORD_ID").expect("DISCORD_ID environment variable not set");
-                let message = format!("{} Alert: {} is DOWN!", discord_id, url);
-                let webhook_url =
-                    dotenvy::var("WEBHOOK_URL").expect("WEBHOOK_URL environment variable not set");
+                let message = format!("<@{}> Alert: {} is DOWN!", discord_id, url);
 
                 if let Err(err) = send_discord_notification(&webhook_url, &message).await {
                     eprintln!("Failed to send Discord notification: {}", err);
