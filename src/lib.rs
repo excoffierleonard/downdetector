@@ -88,7 +88,7 @@ mod tests {
     async fn test_discord_notification() {
         let webhook_url = dotenvy::var("WEBHOOK_URL").expect("WEBHOOK_URL not set");
         let discord_id = dotenvy::var("DISCORD_ID").expect("DISCORD_ID not set");
-        let message = format!("{} Test notification from Rust!", discord_id);
+        let message = format!("<@{}> Test notification from Rust!", discord_id);
         let result = send_discord_notification(&webhook_url, &message).await;
         assert!(
             result.is_ok(),
