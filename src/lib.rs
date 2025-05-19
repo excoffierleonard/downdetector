@@ -62,32 +62,43 @@ pub async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
 }
 
 /// Monitors websites periodically and prints their status
-pub async fn monitor_websites(
-    urls: Vec<String>,
-    timeout_secs: u64,
-    check_interval_secs: u64,
-    discord_id: String,
-    webhook_url: String,
-) {
+pub async fn monitor_websites(config_path: &str) {
+    let config = Config::load(config_path).expect("Failed to load configuration");
+
+    println!("Starting website monitoring...");
+    println!(
+        "Check interval: {} seconds",
+        config.config.check_interval_secs
+    );
+    println!("Timeout: {} seconds", config.config.timeout_secs);
+    println!("Monitoring {} websites", config.sites.urls.len());
+
     loop {
         println!("Checking website status...");
 
-        for url in &urls {
-            let status = is_url_up(url, timeout_secs).await;
+        for url in &config.sites.urls {
+            let status = is_url_up(url, config.config.timeout_secs).await;
             let status_text = if status { "UP" } else { "DOWN" };
             println!("{}: {}", url, status_text);
 
             if !status {
-                let message = format!("<@{}> Alert: {} is DOWN!", discord_id, url);
+                let message = format!(
+                    "<@{}> Alert: {} is DOWN!",
+                    config.config.discord_id.as_ref().unwrap(),
+                    url
+                );
 
-                if let Err(err) = send_discord_notification(&webhook_url, &message).await {
+                if let Err(err) =
+                    send_discord_notification(config.config.webhook_url.as_ref().unwrap(), &message)
+                        .await
+                {
                     eprintln!("Failed to send Discord notification: {}", err);
                 }
             }
         }
 
         // Sleep for the configured interval before the next check
-        time::sleep(Duration::from_secs(check_interval_secs)).await;
+        time::sleep(Duration::from_secs(config.config.check_interval_secs)).await;
     }
 }
 
