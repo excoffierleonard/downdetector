@@ -1,4 +1,4 @@
-use downdetector::{config::Config, monitor_websites};
+use downdetector::{Config, monitor_websites};
 use std::process;
 
 #[tokio::main]
