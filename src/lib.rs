@@ -1,53 +1,14 @@
 use reqwest::Client;
-use serde::Deserialize;
 use serde::Serialize;
-use std::{fs, path::Path, time::Duration};
+use std::time::Duration;
 use tokio::time;
 
-#[derive(Debug, Deserialize)]
-pub struct Config {
-    pub config: ConfigOptions,
-    pub sites: SiteList,
-}
+mod config;
 
-#[derive(Debug, Deserialize)]
-pub struct ConfigOptions {
-    pub timeout_secs: u64,
-    pub check_interval_secs: u64,
-    pub discord_id: Option<String>,
-    pub webhook_url: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct SiteList {
-    pub urls: Vec<String>,
-}
-
-impl Config {
-    pub fn load<P: AsRef<Path>>(path: P) -> Result<Config, Box<dyn std::error::Error>> {
-        let content = fs::read_to_string(path)?;
-        let mut config: Config = toml::from_str(&content)?;
-
-        // if discord_id is not set uuse env with dotenvy
-        if config.config.discord_id.is_none() {
-            let discord_id =
-                dotenvy::var("DISCORD_ID").expect("DISCORD_ID environment variable not set");
-            config.config.discord_id = Some(discord_id);
-        }
-
-        // if webhook_url is not set use env with dotenvy
-        if config.config.webhook_url.is_none() {
-            let webhook_url =
-                dotenvy::var("WEBHOOK_URL").expect("WEBHOOK_URL environment variable not set");
-            config.config.webhook_url = Some(webhook_url);
-        }
-
-        Ok(config)
-    }
-}
+use crate::config::Config;
 
 /// Asynchronously checks if a given URL is up (returns a 2xx status).
-pub async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
+async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
     let client = Client::builder()
         .timeout(Duration::from_secs(timeout_secs))
         .build()
@@ -59,6 +20,21 @@ pub async fn is_url_up(url: &str, timeout_secs: u64) -> bool {
         .await
         .map(|resp| resp.status().is_success())
         .unwrap_or(false)
+}
+
+#[derive(Serialize)]
+struct DiscordMessage {
+    content: String,
+}
+
+async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(), reqwest::Error> {
+    let client = Client::new();
+    let payload = DiscordMessage {
+        content: message.to_string(),
+    };
+
+    client.post(webhook_url).json(&payload).send().await?;
+    Ok(())
 }
 
 /// Monitors websites periodically and prints their status
@@ -100,24 +76,6 @@ pub async fn monitor_websites(config_path: &str) {
         // Sleep for the configured interval before the next check
         time::sleep(Duration::from_secs(config.config.check_interval_secs)).await;
     }
-}
-
-#[derive(Serialize)]
-struct DiscordMessage {
-    content: String,
-}
-
-pub async fn send_discord_notification(
-    webhook_url: &str,
-    message: &str,
-) -> Result<(), reqwest::Error> {
-    let client = Client::new();
-    let payload = DiscordMessage {
-        content: message.to_string(),
-    };
-
-    client.post(webhook_url).json(&payload).send().await?;
-    Ok(())
 }
 
 #[cfg(test)]
