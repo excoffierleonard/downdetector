@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use std::{fs, path::Path};
 use url::Url;
 
-use crate::errors::Error;
+use crate::error::Error;
 
 #[derive(Debug)]
 pub struct Config {

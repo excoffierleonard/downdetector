@@ -5,10 +5,10 @@ use std::time::Duration;
 use tokio::time;
 
 mod config;
-mod errors;
+mod error;
 
 use crate::config::Config;
-use crate::errors::Error;
+use crate::error::Error;
 
 /// Asynchronously checks if a given URL is up (returns a 2xx status).
 async fn is_url_up(url: &str, timeout_secs: u64) -> Result<bool, Error> {
