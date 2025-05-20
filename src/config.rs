@@ -5,7 +5,6 @@ use url::Url;
 
 use crate::errors::Error;
 
-/// Finalized runtime config — no more `Option`
 #[derive(Debug)]
 pub struct Config {
     pub config: ConfigOptions,
@@ -25,7 +24,14 @@ pub struct SiteList {
     pub urls: Vec<String>,
 }
 
-/// Raw version for TOML deserialization — can contain missing fields
+impl Config {
+    pub fn load(path: &Path) -> Result<Self, Error> {
+        let content = fs::read_to_string(path)?;
+        let raw: RawConfig = toml::from_str(&content)?;
+        raw.try_into()
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct RawConfig {
     config: RawConfigOptions,
@@ -109,14 +115,6 @@ fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
     }
 
     Ok(())
-}
-
-impl Config {
-    pub fn load(path: &Path) -> Result<Self, Error> {
-        let content = fs::read_to_string(path)?;
-        let raw: RawConfig = toml::from_str(&content)?;
-        raw.try_into()
-    }
 }
 
 #[cfg(test)]
