@@ -69,7 +69,15 @@ impl TryFrom<RawConfig> for Config {
             .or(raw.config.webhook_url)
             .ok_or_else(|| Error::Config("Missing webhook_url in env or file".into()))?;
 
-        validate_webhook_url(&webhook_url)?;
+        if Url::parse(&webhook_url)?.scheme() != "https" {
+            return Err(Error::Config("webhook_url must use https scheme".into()));
+        }
+
+        if !webhook_url.starts_with("https://discord.com/api/webhooks/") {
+            return Err(Error::Config(
+                "webhook_url must start with https://discord.com/api/webhooks/".into(),
+            ));
+        }
 
         // Timout validation
         if raw.config.timeout_secs == 0 {
@@ -120,22 +128,6 @@ fn find_config() -> Result<PathBuf, Error> {
     fs::write(&config_path, DEFAULT_CONFIG)?;
 
     Ok(config_path)
-}
-
-fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
-    let url = Url::parse(url_str)?;
-
-    if url.scheme() != "https" {
-        return Err(Error::Config("webhook_url must use https scheme".into()));
-    }
-
-    if !url_str.starts_with("https://discord.com/api/webhooks/") {
-        return Err(Error::Config(
-            "webhook_url must start with https://discord.com/api/webhooks/".into(),
-        ));
-    }
-
-    Ok(())
 }
 
 #[cfg(test)]
