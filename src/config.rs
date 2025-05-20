@@ -50,23 +50,21 @@ impl TryFrom<RawConfig> for Config {
     type Error = Error;
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
-        // Discord ID validation
-        let discord_id = raw
-            .config
-            .discord_id
-            .or_else(|| dotenvy::var("DISCORD_ID").ok())
-            .ok_or_else(|| Error::Config("Missing discord_id in file or env".into()))?;
+        // Discord ID validation: Environment variable overrides file configuration.
+        let discord_id = dotenvy::var("DISCORD_ID")
+            .ok()
+            .or(raw.config.discord_id)
+            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?;
 
         if !discord_id.chars().all(|c| c.is_ascii_digit()) {
             return Err(Error::Config("discord_id must be a valid snowflake".into()));
         }
 
-        // Webhook URL validation
-        let webhook_url = raw
-            .config
-            .webhook_url
-            .or_else(|| dotenvy::var("WEBHOOK_URL").ok())
-            .ok_or_else(|| Error::Config("Missing webhook_url in file or env".into()))?;
+        // Webhook URL validation: Environment variable overrides file configuration.
+        let webhook_url = dotenvy::var("WEBHOOK_URL")
+            .ok()
+            .or(raw.config.webhook_url)
+            .ok_or_else(|| Error::Config("Missing webhook_url in env or file".into()))?;
 
         validate_webhook_url(&webhook_url)?;
 
@@ -100,6 +98,8 @@ impl TryFrom<RawConfig> for Config {
         })
     }
 }
+
+// Load the configuration from the current path, if not found, load from the classic config place of the os, if not found, from the $HOME/.config/downdetector, if not founnd then create the default configuration
 
 fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
     let url = Url::parse(url_str)?;
