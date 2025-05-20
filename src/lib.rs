@@ -55,24 +55,32 @@ pub async fn monitor_websites() {
         println!("Checking website status...");
 
         for url in &config.sites.urls {
-            // Need better error handling here
-            let status = is_url_up(url, config.config.timeout_secs).await.unwrap();
-            let status_text = if status { "UP" } else { "DOWN" };
-            println!("{}: {}", url, status_text);
-
-            if !status {
-                let message = format!("<@{}> Alert: {} is DOWN!", &config.config.discord_id, url);
-
-                if let Err(err) =
-                    send_discord_notification(&config.config.webhook_url, &message).await
-                {
-                    eprintln!("Failed to send Discord notification: {}", err);
-                }
-            }
+            monitor_website_status(
+                url,
+                config.config.timeout_secs,
+                &config.config.discord_id,
+                &config.config.webhook_url,
+            )
+            .await;
         }
 
         // Sleep for the configured interval before the next check
         time::sleep(Duration::from_secs(config.config.check_interval_secs)).await;
+    }
+}
+
+async fn monitor_website_status(url: &str, timeout_secs: u64, discord_id: &str, webhook_url: &str) {
+    // TOFIX: Need better error handling here rather than plain unwraping
+    let status = is_url_up(url, timeout_secs).await.unwrap();
+    let status_text = if status { "UP" } else { "DOWN" };
+    println!("{}: {}", url, status_text);
+
+    if !status {
+        let message = format!("<@{}> Alert: {} is DOWN!", discord_id, url);
+
+        if let Err(err) = send_discord_notification(webhook_url, &message).await {
+            eprintln!("Failed to send Discord notification: {}", err);
+        }
     }
 }
 

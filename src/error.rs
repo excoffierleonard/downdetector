@@ -12,7 +12,6 @@ pub enum Error {
     HttpRequest(#[from] reqwest::Error),
     #[error("Configuration error: {0}")]
     Config(String),
-    // URL parsing error
     #[error("URL parsing error: {0}")]
     UrlParse(#[from] url::ParseError),
 }
