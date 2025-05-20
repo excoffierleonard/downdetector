@@ -76,6 +76,13 @@ impl TryFrom<RawConfig> for Config {
             ));
         }
 
+        // Validate monitored sites URLs
+        for url in &raw.sites.urls {
+            if !Url::parse(url).is_ok() {
+                return Err(Error::Config(format!("Invalid URL: {}", url)));
+            }
+        }
+
         Ok(Config {
             config: ConfigOptions {
                 timeout_secs: raw.config.timeout_secs,
@@ -155,5 +162,119 @@ mod tests {
             config.config.webhook_url,
             "https://discord.com/api/webhooks/1234567890/abcdefg".to_string()
         );
+    }
+
+    // Test invalide timeout
+    #[test]
+    fn test_invalid_timeout() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 0
+            check_interval_secs = 60
+            discord_id = "1234567890"
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+
+            [sites]
+            urls = [
+                "https://www.google.com"
+            ]
+        "#;
+
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+
+        let result = Config::load(temp_file.path());
+        assert!(result.is_err(), "Expected error for invalid timeout");
+    }
+
+    // Test invalid check interval
+    #[test]
+    fn test_invalid_check_interval() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 5
+            check_interval_secs = 86400
+            discord_id = "1234567890"
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+
+            [sites]
+            urls = [
+                "https://www.google.com"
+            ]
+        "#;
+
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+
+        let result = Config::load(temp_file.path());
+        assert!(result.is_err(), "Expected error for invalid check interval");
+    }
+
+    // Test invalid Discord ID
+    #[test]
+    fn test_invalid_discord_id() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 5
+            check_interval_secs = 60
+            discord_id = "invalid-id"
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+
+            [sites]
+            urls = [
+                "https://www.google.com"
+            ]
+        "#;
+
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+
+        let result = Config::load(temp_file.path());
+        assert!(result.is_err(), "Expected error for invalid Discord ID");
+    }
+
+    // Test invalid webhook URL
+    #[test]
+    fn test_invalid_webhook_url() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 5
+            check_interval_secs = 60
+            discord_id = "1234567890"
+            webhook_url = "invalid-url"
+
+            [sites]
+            urls = [
+                "https://www.google.com"
+            ]
+        "#;
+
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+
+        let result = Config::load(temp_file.path());
+        assert!(result.is_err(), "Expected error for invalid webhook URL");
+    }
+
+    #[test]
+    fn test_invalid_monitored_url() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 5
+            check_interval_secs = 60
+            discord_id = "1234567890"
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+
+            [sites]
+            urls = [
+                "invalid-url"
+            ]
+        "#;
+
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+
+        let result = Config::load(temp_file.path());
+        assert!(result.is_err(), "Expected error for invalid URL");
     }
 }
