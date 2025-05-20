@@ -3,6 +3,9 @@ services:
     image: ghcr.io/excoffierleonard/downdetector:latest
     build:
       context: .
+    environment:
+      DISCORD_ID: ${DISCORD_ID:-}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
     volumes:
       - config:/.config/downdetector
 
