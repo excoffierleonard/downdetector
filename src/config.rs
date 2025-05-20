@@ -84,7 +84,7 @@ impl TryFrom<RawConfig> for Config {
 
         // Validate monitored sites URLs
         for url in &raw.sites.urls {
-            if !Url::parse(url).is_ok() {
+            if Url::parse(url).is_err() {
                 return Err(Error::Config(format!("Invalid URL: {}", url)));
             }
         }
