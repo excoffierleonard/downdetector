@@ -1,5 +1,7 @@
 use serde::Deserialize;
+use std::convert::TryFrom;
 use std::{fs, path::Path};
+use url::Url;
 
 use crate::errors::Error;
 
@@ -26,34 +28,53 @@ pub struct SiteList {
 /// Raw version for TOML deserialization — can contain missing fields
 #[derive(Debug, Deserialize)]
 struct RawConfig {
-    pub config: RawConfigOptions,
-    pub sites: SiteList,
+    config: RawConfigOptions,
+    sites: SiteList,
 }
 
 #[derive(Debug, Deserialize)]
 struct RawConfigOptions {
-    pub timeout_secs: u64,
-    pub check_interval_secs: u64,
-    pub discord_id: Option<String>,
-    pub webhook_url: Option<String>,
+    timeout_secs: u64,
+    check_interval_secs: u64,
+    discord_id: Option<String>,
+    webhook_url: Option<String>,
 }
 
-impl Config {
-    pub fn load(path: &Path) -> Result<Config, Error> {
-        let content = fs::read_to_string(path)?;
-        let raw: RawConfig = toml::from_str(&content)?;
+impl TryFrom<RawConfig> for Config {
+    type Error = Error;
 
+    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+        // Discord ID validation
         let discord_id = raw
             .config
             .discord_id
             .or_else(|| dotenvy::var("DISCORD_ID").ok())
             .ok_or_else(|| Error::Config("Missing discord_id in file or env".into()))?;
 
+        if !discord_id.chars().all(|c| c.is_ascii_digit()) {
+            return Err(Error::Config("discord_id must be a valid snowflake".into()));
+        }
+
+        // Webhook URL validation
         let webhook_url = raw
             .config
             .webhook_url
             .or_else(|| dotenvy::var("WEBHOOK_URL").ok())
             .ok_or_else(|| Error::Config("Missing webhook_url in file or env".into()))?;
+
+        validate_webhook_url(&webhook_url)?;
+
+        // Timout validation
+        if raw.config.timeout_secs == 0 {
+            return Err(Error::Config("timeout_secs must be > 0".into()));
+        }
+
+        // Check interval validation
+        if !(1..86400).contains(&raw.config.check_interval_secs) {
+            return Err(Error::Config(
+                "check_interval_secs must be > 0 and < 86400".into(),
+            ));
+        }
 
         Ok(Config {
             config: ConfigOptions {
@@ -64,6 +85,30 @@ impl Config {
             },
             sites: raw.sites,
         })
+    }
+}
+
+fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
+    let url = Url::parse(url_str)?;
+
+    if url.scheme() != "https" {
+        return Err(Error::Config("webhook_url must use https scheme".into()));
+    }
+
+    if !url_str.starts_with("https://discord.com/api/webhooks/") {
+        return Err(Error::Config(
+            "webhook_url must start with https://discord.com/api/webhooks/".into(),
+        ));
+    }
+
+    Ok(())
+}
+
+impl Config {
+    pub fn load(path: &Path) -> Result<Self, Error> {
+        let content = fs::read_to_string(path)?;
+        let raw: RawConfig = toml::from_str(&content)?;
+        raw.try_into()
     }
 }
 
