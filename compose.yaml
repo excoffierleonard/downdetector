@@ -3,3 +3,8 @@ services:
     image: ghcr.io/excoffierleonard/downdetector:latest
     build:
       context: .
+    volumes:
+      - config:/.config/downdetector
+
+volumes:
+  config: {}
