@@ -1,6 +1,5 @@
 use reqwest::Client;
 use serde::Serialize;
-use std::path::Path;
 use std::time::Duration;
 use tokio::time;
 
@@ -41,8 +40,8 @@ async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(
 }
 
 /// Monitors websites periodically and prints their status
-pub async fn monitor_websites(config_path: &str) {
-    let config = Config::load(Path::new(config_path)).expect("Failed to load configuration");
+pub async fn monitor_websites() {
+    let config = Config::load().expect("Failed to load configuration");
 
     println!("Starting website monitoring...");
     println!(

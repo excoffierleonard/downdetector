@@ -1,9 +1,11 @@
 use serde::Deserialize;
 use std::convert::TryFrom;
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 use url::Url;
 
 use crate::error::Error;
+
+const DEFAULT_CONFIG: &str = include_str!("../config.example.toml");
 
 #[derive(Debug)]
 pub struct Config {
@@ -25,7 +27,8 @@ pub struct SiteList {
 }
 
 impl Config {
-    pub fn load(path: &Path) -> Result<Self, Error> {
+    pub fn load() -> Result<Self, Error> {
+        let path = find_config()?;
         let content = fs::read_to_string(path)?;
         let raw: RawConfig = toml::from_str(&content)?;
         raw.try_into()
@@ -99,7 +102,25 @@ impl TryFrom<RawConfig> for Config {
     }
 }
 
-// Load the configuration from the current path, if not found, load from the classic config place of the os, if not found, from the $HOME/.config/downdetector, if not founnd then create the default configuration
+fn find_config() -> Result<PathBuf, Error> {
+    let config_path = dirs::config_dir()
+        // TODO: Better error handling
+        .ok_or_else(|| Error::Config("Unable to find config directory".into()))?
+        .join("downdetector")
+        .join("config.toml");
+
+    if config_path.exists() {
+        return Ok(config_path);
+    }
+
+    if let Some(parent) = config_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    fs::write(&config_path, DEFAULT_CONFIG)?;
+
+    Ok(config_path)
+}
 
 fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
     let url = Url::parse(url_str)?;
@@ -120,12 +141,9 @@ fn validate_webhook_url(url_str: &str) -> Result<(), Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_load_config_from_toml() {
-        // Define a valid TOML configuration string
         let toml_content = r#"
             [config]
             timeout_secs = 5
@@ -141,14 +159,11 @@ mod tests {
             ]
         "#;
 
-        // Write the TOML content to a temporary file
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let config: Config = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into()
+            .expect("Failed to convert to Config");
 
-        // Parse the config
-        let config = Config::load(temp_file.path()).expect("Failed to parse config");
-
-        // Assertions
         assert_eq!(config.config.timeout_secs, 5);
         assert_eq!(config.config.check_interval_secs, 60);
         assert_eq!(config.sites.urls.len(), 3);
@@ -178,10 +193,10 @@ mod tests {
             ]
         "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
 
-        let result = Config::load(temp_file.path());
         assert!(result.is_err(), "Expected error for invalid timeout");
     }
 
@@ -201,10 +216,10 @@ mod tests {
             ]
         "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
 
-        let result = Config::load(temp_file.path());
         assert!(result.is_err(), "Expected error for invalid check interval");
     }
 
@@ -224,10 +239,10 @@ mod tests {
             ]
         "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
 
-        let result = Config::load(temp_file.path());
         assert!(result.is_err(), "Expected error for invalid Discord ID");
     }
 
@@ -247,10 +262,10 @@ mod tests {
             ]
         "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
 
-        let result = Config::load(temp_file.path());
         assert!(result.is_err(), "Expected error for invalid webhook URL");
     }
 
@@ -269,10 +284,10 @@ mod tests {
             ]
         "#;
 
-        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
-        write!(temp_file, "{}", toml_content).expect("Failed to write to temp file");
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
 
-        let result = Config::load(temp_file.path());
         assert!(result.is_err(), "Expected error for invalid URL");
     }
 }

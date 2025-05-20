@@ -1,4 +1,4 @@
 #[tokio::main]
 async fn main() {
-    downdetector::monitor_websites("config.toml").await;
+    downdetector::monitor_websites().await;
 }
