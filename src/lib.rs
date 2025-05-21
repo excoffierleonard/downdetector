@@ -77,11 +77,8 @@ async fn monitor_website_status(url: &str, timeout_secs: u64, discord_id: &str, 
         info!("{}: UP", url);
     } else {
         warn!("{}: DOWN", url);
-    }
-
-    if !status {
         let message = format!("<@{}> Alert: {} is DOWN!", discord_id, url);
-
+        // TOFIX: Need better error handling here, use thiserror to implement the error rather than handling here
         if let Err(err) = send_discord_notification(webhook_url, &message).await {
             error!("Failed to send Discord notification: {}", err);
         }
