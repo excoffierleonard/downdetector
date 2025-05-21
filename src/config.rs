@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::error::Error;
 
-const DEFAULT_CONFIG: &str = include_str!("../config.toml");
+const DEFAULT_CONFIG: &str = include_str!("../config.example.toml");
 
 #[derive(Debug)]
 pub struct Config {
