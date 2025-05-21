@@ -1,3 +1,4 @@
+use log::{error, info, warn};
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
@@ -43,16 +44,16 @@ async fn send_discord_notification(webhook_url: &str, message: &str) -> Result<(
 pub async fn monitor_websites() {
     let config = Config::load().expect("Failed to load configuration");
 
-    println!("Starting website monitoring...");
-    println!(
+    info!("Starting website monitoring...");
+    info!(
         "Check interval: {} seconds",
         config.config.check_interval_secs
     );
-    println!("Timeout: {} seconds", config.config.timeout_secs);
-    println!("Monitoring {} websites", config.sites.urls.len());
+    info!("Timeout: {} seconds", config.config.timeout_secs);
+    info!("Monitoring {} websites", config.sites.urls.len());
 
     loop {
-        println!("Checking website status...");
+        info!("Checking website status...");
 
         for url in &config.sites.urls {
             monitor_website_status(
@@ -72,14 +73,17 @@ pub async fn monitor_websites() {
 async fn monitor_website_status(url: &str, timeout_secs: u64, discord_id: &str, webhook_url: &str) {
     // TOFIX: Need better error handling here rather than plain unwraping
     let status = is_url_up(url, timeout_secs).await.unwrap();
-    let status_text = if status { "UP" } else { "DOWN" };
-    println!("{}: {}", url, status_text);
+    if status {
+        info!("{}: UP", url);
+    } else {
+        warn!("{}: DOWN", url);
+    }
 
     if !status {
         let message = format!("<@{}> Alert: {} is DOWN!", discord_id, url);
 
         if let Err(err) = send_discord_notification(webhook_url, &message).await {
-            eprintln!("Failed to send Discord notification: {}", err);
+            error!("Failed to send Discord notification: {}", err);
         }
     }
 }
