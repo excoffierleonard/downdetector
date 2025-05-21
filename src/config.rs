@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::error::Error;
 
-const DEFAULT_CONFIG: &str = include_str!("../config.example.toml");
+const DEFAULT_CONFIG: &str = include_str!("../config.toml");
 
 #[derive(Debug)]
 pub struct Config {
@@ -45,7 +45,7 @@ struct RawConfig {
 struct RawConfigOptions {
     timeout_secs: u64,
     check_interval_secs: u64,
-    discord_id: Option<String>,
+    discord_id: Option<u64>,
     webhook_url: Option<String>,
 }
 
@@ -56,9 +56,9 @@ impl TryFrom<RawConfig> for Config {
         // Discord ID validation: Environment variable overrides file configuration.
         let discord_id: u64 = dotenvy::var("DISCORD_ID")
             .ok()
+            .and_then(|v| v.parse().ok())
             .or(raw.config.discord_id)
-            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?
-            .parse()?;
+            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?;
 
         // Webhook URL validation: Environment variable overrides file configuration.
         let webhook_url = dotenvy::var("WEBHOOK_URL")
@@ -137,7 +137,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 60
-            discord_id = "1234567890"
+            discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
 
             [sites]
@@ -173,7 +173,7 @@ mod tests {
             [config]
             timeout_secs = 0
             check_interval_secs = 60
-            discord_id = "1234567890"
+            discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
 
             [sites]
@@ -196,7 +196,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 86400
-            discord_id = "1234567890"
+            discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
 
             [sites]
@@ -212,28 +212,7 @@ mod tests {
         assert!(result.is_err(), "Expected error for invalid check interval");
     }
 
-    // Test invalid Discord ID
-    #[test]
-    fn test_invalid_discord_id() {
-        let toml_content = r#"
-            [config]
-            timeout_secs = 5
-            check_interval_secs = 60
-            discord_id = "invalid-id"
-            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
-            [sites]
-            urls = [
-                "https://www.google.com"
-            ]
-        "#;
-
-        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
-            .expect("Failed to parse config")
-            .try_into();
-
-        assert!(result.is_err(), "Expected error for invalid Discord ID");
-    }
+    // NOTE: We do not test for invalid Discord ID since it is enforced by the type system, a snowflake ID is a u64.
 
     // Test invalid webhook URL
     #[test]
@@ -242,7 +221,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 60
-            discord_id = "1234567890"
+            discord_id = 1234567890
             webhook_url = "invalid-url"
 
             [sites]
@@ -264,7 +243,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 60
-            discord_id = "1234567890"
+            discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
 
             [sites]
