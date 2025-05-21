@@ -131,6 +131,15 @@ fn find_config() -> Result<PathBuf, Error> {
 mod tests {
     use super::*;
 
+    // Maybe we should enforce it at compile time?
+    #[test]
+    fn example_config_is_valid() {
+        let _config: Config = toml::from_str::<RawConfig>(DEFAULT_CONFIG)
+            .expect("Failed to parse example config")
+            .try_into()
+            .expect("Failed to convert to Config");
+    }
+
     #[test]
     fn test_load_config_from_toml() {
         let toml_content = r#"
