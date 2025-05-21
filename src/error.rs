@@ -14,4 +14,6 @@ pub enum Error {
     Config(String),
     #[error("URL parsing error: {0}")]
     UrlParse(#[from] url::ParseError),
+    #[error("Integer parsing error: {0}")]
+    ParseInt(#[from] std::num::ParseIntError),
 }

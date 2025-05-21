@@ -17,7 +17,7 @@ pub struct Config {
 pub struct ConfigOptions {
     pub timeout_secs: u64,
     pub check_interval_secs: u64,
-    pub discord_id: String,
+    pub discord_id: u64,
     pub webhook_url: String,
 }
 
@@ -54,14 +54,11 @@ impl TryFrom<RawConfig> for Config {
 
     fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
         // Discord ID validation: Environment variable overrides file configuration.
-        let discord_id = dotenvy::var("DISCORD_ID")
+        let discord_id: u64 = dotenvy::var("DISCORD_ID")
             .ok()
             .or(raw.config.discord_id)
-            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?;
-
-        if !discord_id.chars().all(|c| c.is_ascii_digit()) {
-            return Err(Error::Config("discord_id must be a valid snowflake".into()));
-        }
+            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?
+            .parse()?;
 
         // Webhook URL validation: Environment variable overrides file configuration.
         let webhook_url = dotenvy::var("WEBHOOK_URL")
@@ -69,14 +66,14 @@ impl TryFrom<RawConfig> for Config {
             .or(raw.config.webhook_url)
             .ok_or_else(|| Error::Config("Missing webhook_url in env or file".into()))?;
 
-        if Url::parse(&webhook_url)?.scheme() != "https" {
-            return Err(Error::Config("webhook_url must use https scheme".into()));
-        }
+        let parsed_url = Url::parse(&webhook_url)
+            .map_err(|_| Error::Config("Invalid webhook URL format".into()))?;
 
-        if !webhook_url.starts_with("https://discord.com/api/webhooks/") {
-            return Err(Error::Config(
-                "webhook_url must start with https://discord.com/api/webhooks/".into(),
-            ));
+        if parsed_url.scheme() != "https"
+            || parsed_url.host_str() != Some("discord.com")
+            || !parsed_url.path().starts_with("/api/webhooks/")
+        {
+            return Err(Error::Config("Webhook URL must be a valid Discord webhook starting with https://discord.com/api/webhooks/".into()));
         }
 
         // Timout validation
@@ -162,7 +159,7 @@ mod tests {
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
         assert_eq!(config.sites.urls[2], "https://invalid.url");
-        assert_eq!(config.config.discord_id, "1234567890".to_string());
+        assert_eq!(config.config.discord_id, 1234567890);
         assert_eq!(
             config.config.webhook_url,
             "https://discord.com/api/webhooks/1234567890/abcdefg".to_string()

@@ -70,7 +70,7 @@ pub async fn monitor_websites() {
     }
 }
 
-async fn monitor_website_status(url: &str, timeout_secs: u64, discord_id: &str, webhook_url: &str) {
+async fn monitor_website_status(url: &str, timeout_secs: u64, discord_id: &u64, webhook_url: &str) {
     // TOFIX: Need better error handling here rather than plain unwraping
     let status = is_url_up(url, timeout_secs).await.unwrap();
     if status {
