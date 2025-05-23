@@ -44,15 +44,17 @@ async fn monitor_website_status(
     url: &str,
     timeout_secs: u64,
     discord_id: &Option<u64>,
-    webhook_url: &str,
+    webhook_url: &Option<String>,
 ) -> Result<(), Error> {
     match is_url_up(url, timeout_secs).await? {
         true => info!("{}: UP", url),
         false => {
             warn!("{}: DOWN", url);
 
-            let message = format!("Alert: {} is DOWN!", url);
-            send_discord_notification(webhook_url, &message, discord_id).await?;
+            if let Some(webhook) = webhook_url {
+                let message = format!("Alert: {} is DOWN!", url);
+                send_discord_notification(webhook, &message, discord_id).await?;
+            }
         }
     }
     Ok(())
@@ -85,6 +87,7 @@ async fn send_discord_notification(
 ) -> Result<(), Error> {
     let client = Client::new();
 
+    // If discord_id is None, we don't want to mention anyone
     let tag = discord_id.map_or(String::new(), |id| format!("<@{}> ", id));
 
     let payload = DiscordMessage {

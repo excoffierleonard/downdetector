@@ -20,7 +20,7 @@ pub struct ConfigOptions {
     pub timeout_secs: u64,
     pub check_interval_secs: u64,
     pub discord_id: Option<u64>,
-    pub webhook_url: String,
+    pub webhook_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -92,11 +92,11 @@ impl Config {
             .or(raw_id))
     }
 
-    fn validate_webhook_url(raw_url: Option<String>) -> Result<String, Error> {
-        let webhook_url = dotenvy::var("WEBHOOK_URL")
-            .ok()
-            .or(raw_url)
-            .ok_or_else(|| Error::Config("Missing webhook_url in env or file".into()))?;
+    fn validate_webhook_url(raw_url: Option<String>) -> Result<Option<String>, Error> {
+        let webhook_url = match dotenvy::var("WEBHOOK_URL").ok().or(raw_url) {
+            Some(url) => url,
+            None => return Ok(None),
+        };
 
         let parsed_url = Url::parse(&webhook_url)
             .map_err(|_| Error::Config("Invalid webhook URL format".into()))?;
@@ -106,11 +106,11 @@ impl Config {
             || !parsed_url.path().starts_with("/api/webhooks/")
         {
             return Err(Error::Config(
-                "Webhook URL must be a valid Discord webhook starting with https://discord.com/api/webhooks/".into()
-            ));
+            "Webhook URL must be a valid Discord webhook starting with https://discord.com/api/webhooks/".into()
+        ));
         }
 
-        Ok(webhook_url)
+        Ok(Some(webhook_url))
     }
 
     fn validate_urls(urls: &[String]) -> Result<(), Error> {
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(config.config.discord_id, Some(1234567890));
         assert_eq!(
             config.config.webhook_url,
-            "https://discord.com/api/webhooks/1234567890/abcdefg".to_string()
+            Some("https://discord.com/api/webhooks/1234567890/abcdefg".to_string())
         );
     }
 
