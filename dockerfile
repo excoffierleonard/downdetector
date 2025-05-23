@@ -29,8 +29,6 @@ RUN cargo build --release
 # Stage 3: Final Image
 ##############################
 FROM scratch
-ENV DISCORD_ID=""
-ENV WEBHOOK_URL=""
 WORKDIR /app
 # Copy the statically linked binary from the builder stage
 COPY --from=builder /app/target/release/downdetector .

@@ -1,8 +1,8 @@
 [config]
 timeout_secs = 5
 check_interval_secs = 60
-discord_id = 1234567890
 webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+discord_id = 1234567890
 
 [sites]
 urls = [
