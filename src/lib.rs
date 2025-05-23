@@ -17,16 +17,13 @@
 //! continuously and monitors all configured websites.
 //!
 //! ```no_run
-//! use downdetector::monitor_websites;
-//!
 //! #[tokio::main]
 //! async fn main() {
-//!     // Initialize logging (optional but recommended)
-//!     env_logger::init();
+//!     // Initialize logging
+//!     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
 //!     
-//!     // Start monitoring websites
-//!     // This function runs forever, checking sites periodically
-//!     monitor_websites().await;
+//!     // Start monitoring (runs forever)
+//!     downdetector::monitor_websites().await;
 //! }
 //! ```
 //!

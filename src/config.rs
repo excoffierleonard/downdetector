@@ -74,9 +74,9 @@ impl Config {
     /// # Examples
     ///
     /// ```no_run
-    /// use downdetector::Config;
+    /// use crate::config::Config;
     ///
-    /// let config = Config::load()?;
+    /// let config = Config::load().expect("Failed to load configuration");
     /// println!("Monitoring {} sites", config.sites.urls.len());
     /// ```
     pub fn load() -> Result<Self, Error> {
