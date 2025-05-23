@@ -11,22 +11,6 @@
 //! - Optional user mentions in Discord notifications
 //! - Automatic configuration file creation with sensible defaults
 //!
-//! # Usage
-//!
-//! The main entry point is the [`monitor_websites`] function, which runs
-//! continuously and monitors all configured websites.
-//!
-//! ```no_run
-//! #[tokio::main]
-//! async fn main() {
-//!     // Initialize logging
-//!     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
-//!     
-//!     // Start monitoring (runs forever)
-//!     downdetector::monitor_websites().await;
-//! }
-//! ```
-//!
 //! # Configuration
 //!
 //! The application expects a TOML configuration file at:

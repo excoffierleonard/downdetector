@@ -2,7 +2,7 @@ use log::{error, info, warn};
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
-use tokio::{select, signal, time::sleep};
+use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
@@ -24,32 +24,8 @@ use crate::error::Error;
 /// # Panics
 ///
 /// Panics if the configuration cannot be loaded at startup.
-///
-/// # Example
-///
-/// ```no_run
-/// #[tokio::main]
-/// async fn main() {
-///     // Initialize logging
-///     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
-///     
-///     // Start monitoring (runs forever)
-///     downdetector::monitor_websites().await;
-/// }
-/// ```
-pub async fn monitor_websites() {
+pub async fn monitor_websites(token: CancellationToken) {
     let config = Config::load().expect("Failed to load configuration");
-    let token = CancellationToken::new();
-
-    // Spawn the shutdown handler
-    let shutdown_token = token.clone();
-    tokio::spawn(async move {
-        signal::ctrl_c()
-            .await
-            .expect("Failed to install CTRL+C handler");
-        info!("Shutdown signal received");
-        shutdown_token.cancel();
-    });
 
     // Intial Configuration Logging
     info!("Starting website monitoring...");
@@ -76,13 +52,13 @@ pub async fn monitor_websites() {
 
     // Main monitoring loop
     loop {
-        info!("Checking website status...");
-
         // Check if we should shutdown before starting new cycle
         if token.is_cancelled() {
-            info!("Shutting down before new check cycle");
+            info!("Shutdown requested, stopping monitor");
             break;
         }
+
+        info!("Checking website status...");
 
         for url in &config.sites.urls {
             if let Err(e) = monitor_website_status(
@@ -101,12 +77,13 @@ pub async fn monitor_websites() {
         select! {
             _ = sleep(Duration::from_secs(config.config.check_interval_secs)) => {},
             _ = token.cancelled() => {
-                info!("Shutting down during sleep");
+                info!("Shutdown requested during sleep");
                 break;
             }
         }
     }
 
+    // Cleanup and shutdown
     info!("Website monitoring stopped gracefully");
 }
 
