@@ -125,7 +125,7 @@ impl Config {
 impl TryFrom<RawConfig> for Config {
     type Error = Error;
 
-    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+    fn try_from(raw: RawConfig) -> Result<Self, Error> {
         // Validate all fields
         let timeout_secs = Config::validate_timeout(raw.config.timeout_secs)?;
         let check_interval_secs = Config::validate_check_interval(raw.config.check_interval_secs)?;
