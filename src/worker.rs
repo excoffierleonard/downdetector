@@ -167,7 +167,7 @@ mod tests {
             .parse()
             .expect("Invalid DISCORD_ID");
         let message = "Test notification from Rust!";
-        let result = send_discord_notification(&webhook_url, &message, &Some(discord_id)).await;
+        let result = send_discord_notification(&webhook_url, message, &Some(discord_id)).await;
         assert!(
             result.is_ok(),
             "Expected notification to be sent successfully"
