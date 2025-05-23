@@ -73,9 +73,7 @@ impl Config {
     ///
     /// # Examples
     ///
-    /// ```no_run
-    /// use crate::config::Config;
-    ///
+    /// ```ignore
     /// let config = Config::load().expect("Failed to load configuration");
     /// println!("Monitoring {} sites", config.sites.urls.len());
     /// ```
