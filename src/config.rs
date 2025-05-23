@@ -9,27 +9,76 @@ const DEFAULT_CONFIG: &str = include_str!("../config.default.toml");
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 300;
 
+/// Configuration structure for the downtime detector application.
+///
+/// This struct contains both the application configuration options
+/// and the list of sites to monitor.
 #[derive(Debug)]
 pub struct Config {
+    /// Application configuration options
     pub config: ConfigOptions,
+    /// List of sites to monitor
     pub sites: SiteList,
 }
 
+/// Application configuration options.
+///
+/// These options control the behavior of the downtime detector,
+/// including timeouts, check intervals, and Discord notification settings.
 #[derive(Debug)]
 pub struct ConfigOptions {
+    /// HTTP request timeout in seconds.
+    /// Must be greater than 0.
     pub timeout_secs: u64,
+    /// Interval between site checks in seconds.
+    /// Must be between 1 and 86399 (inclusive).
     pub check_interval_secs: u64,
+    /// Discord webhook URL for sending notifications.
+    /// Must be a valid Discord webhook URL starting with `https://discord.com/api/webhooks/`.
+    /// Can also be set via the `WEBHOOK_URL` environment variable.
     pub webhook_url: Option<String>,
+    /// Discord user ID for mentions in notifications.
+    /// Can also be set via the `DISCORD_ID` environment variable.
     pub discord_id: Option<u64>,
 }
 
+/// List of sites to monitor.
+///
+/// Contains a vector of URLs that will be checked periodically
+/// for availability.
 #[derive(Debug, Deserialize, Default)]
 pub struct SiteList {
+    /// URLs to monitor for downtime.
+    /// Each URL must be valid and parseable.
     #[serde(default)]
     pub urls: Vec<String>,
 }
 
 impl Config {
+    /// Loads the configuration from the default config file location.
+    ///
+    /// The config file is expected to be at:
+    /// - Linux/macOS: `~/.config/downdetector/config.toml`
+    /// - Windows: `%APPDATA%\downdetector\config.toml`
+    ///
+    /// If the config file doesn't exist, a default one will be created.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The config directory cannot be determined
+    /// - The config file cannot be read or created
+    /// - The TOML content is invalid
+    /// - Any validation fails (invalid URLs, out-of-range values, etc.)
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use downdetector::Config;
+    ///
+    /// let config = Config::load()?;
+    /// println!("Monitoring {} sites", config.sites.urls.len());
+    /// ```
     pub fn load() -> Result<Self, Error> {
         let path = find_config()?;
         let content = fs::read_to_string(path)?;

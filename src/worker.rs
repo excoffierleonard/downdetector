@@ -7,7 +7,35 @@ use tokio::time;
 use crate::config::Config;
 use crate::error::Error;
 
-/// Monitors websites periodically and prints their status
+/// Continuously monitors configured websites and reports their status.
+///
+/// This function runs indefinitely, checking all configured websites at regular
+/// intervals and sending Discord notifications when sites are detected as down.
+///
+/// # Behavior
+///
+/// - Loads configuration from the default config file location
+/// - Checks each configured URL for availability
+/// - Logs the status of each site (UP/DOWN)
+/// - Sends Discord webhook notifications for DOWN sites (if configured)
+/// - Sleeps for the configured interval before the next check cycle
+///
+/// # Panics
+///
+/// Panics if the configuration cannot be loaded at startup.
+///
+/// # Example
+///
+/// ```no_run
+/// #[tokio::main]
+/// async fn main() {
+///     // Initialize logging
+///     env_logger::init();
+///     
+///     // Start monitoring (runs forever)
+///     monitor_websites().await;
+/// }
+/// ```
 pub async fn monitor_websites() {
     let config = Config::load().expect("Failed to load configuration");
 
