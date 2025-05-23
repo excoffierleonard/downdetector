@@ -2,7 +2,8 @@ use log::{error, info, warn};
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
-use tokio::time;
+use tokio::{select, signal, time::sleep};
+use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
 use crate::error::Error;
@@ -38,7 +39,19 @@ use crate::error::Error;
 /// ```
 pub async fn monitor_websites() {
     let config = Config::load().expect("Failed to load configuration");
+    let token = CancellationToken::new();
 
+    // Spawn the shutdown handler
+    let shutdown_token = token.clone();
+    tokio::spawn(async move {
+        signal::ctrl_c()
+            .await
+            .expect("Failed to install CTRL+C handler");
+        info!("Shutdown signal received");
+        shutdown_token.cancel();
+    });
+
+    // Intial Configuration Logging
     info!("Starting website monitoring...");
     info!(
         "Check interval: {} seconds",
@@ -61,8 +74,15 @@ pub async fn monitor_websites() {
     }
     info!("Monitoring {} websites", config.sites.urls.len());
 
+    // Main monitoring loop
     loop {
         info!("Checking website status...");
+
+        // Check if we should shutdown before starting new cycle
+        if token.is_cancelled() {
+            info!("Shutting down before new check cycle");
+            break;
+        }
 
         for url in &config.sites.urls {
             if let Err(e) = monitor_website_status(
@@ -77,9 +97,17 @@ pub async fn monitor_websites() {
             }
         }
 
-        // Sleep for the configured interval before the next check
-        time::sleep(Duration::from_secs(config.config.check_interval_secs)).await;
+        // Interruptible sleep
+        select! {
+            _ = sleep(Duration::from_secs(config.config.check_interval_secs)) => {},
+            _ = token.cancelled() => {
+                info!("Shutting down during sleep");
+                break;
+            }
+        }
     }
+
+    info!("Website monitoring stopped gracefully");
 }
 
 async fn monitor_website_status(
