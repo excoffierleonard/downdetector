@@ -1,5 +1,5 @@
 mod config;
 mod error;
-mod process;
+mod worker;
 
-pub use process::monitor_websites;
+pub use worker::monitor_websites;
