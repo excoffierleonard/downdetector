@@ -2,7 +2,8 @@ use log::{error, info, warn};
 use reqwest::Client;
 use serde::Serialize;
 use std::time::Duration;
-use tokio::time;
+use tokio::{select, time::sleep};
+use tokio_util::sync::CancellationToken;
 
 use crate::config::Config;
 use crate::error::Error;
@@ -23,22 +24,10 @@ use crate::error::Error;
 /// # Panics
 ///
 /// Panics if the configuration cannot be loaded at startup.
-///
-/// # Example
-///
-/// ```no_run
-/// #[tokio::main]
-/// async fn main() {
-///     // Initialize logging
-///     env_logger::init_from_env(env_logger::Env::default().default_filter_or("info"));
-///     
-///     // Start monitoring (runs forever)
-///     downdetector::monitor_websites().await;
-/// }
-/// ```
-pub async fn monitor_websites() {
+pub async fn monitor_websites(token: CancellationToken) {
     let config = Config::load().expect("Failed to load configuration");
 
+    // Intial Configuration Logging
     info!("Starting website monitoring...");
     info!(
         "Check interval: {} seconds",
@@ -61,7 +50,14 @@ pub async fn monitor_websites() {
     }
     info!("Monitoring {} websites", config.sites.urls.len());
 
+    // Main monitoring loop
     loop {
+        // Check if we should shutdown before starting new cycle
+        if token.is_cancelled() {
+            info!("Shutdown requested, stopping monitor");
+            break;
+        }
+
         info!("Checking website status...");
 
         for url in &config.sites.urls {
@@ -77,9 +73,18 @@ pub async fn monitor_websites() {
             }
         }
 
-        // Sleep for the configured interval before the next check
-        time::sleep(Duration::from_secs(config.config.check_interval_secs)).await;
+        // Interruptible sleep
+        select! {
+            _ = sleep(Duration::from_secs(config.config.check_interval_secs)) => {},
+            _ = token.cancelled() => {
+                info!("Shutdown requested during sleep");
+                break;
+            }
+        }
     }
+
+    // Cleanup and shutdown
+    info!("Website monitoring stopped gracefully");
 }
 
 async fn monitor_website_status(
