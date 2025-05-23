@@ -87,8 +87,8 @@ impl Config {
 
     fn validate_webhook_url(raw_url: Option<String>) -> Result<Option<String>, Error> {
         let webhook_url = match dotenvy::var("WEBHOOK_URL").ok().or(raw_url) {
-            Some(url) => url,
-            None => return Ok(None),
+            Some(url) if !url.trim().is_empty() => url,
+            _ => return Ok(None),
         };
 
         let parsed_url = Url::parse(&webhook_url)
