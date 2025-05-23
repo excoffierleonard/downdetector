@@ -1,11 +1,13 @@
+use crate::error::Error;
 use serde::Deserialize;
-use std::convert::TryFrom;
 use std::{fs, path::PathBuf};
 use url::Url;
 
-use crate::error::Error;
-
 const DEFAULT_CONFIG: &str = include_str!("../config.example.toml");
+
+// Default values as constants
+const DEFAULT_TIMEOUT_SECS: u64 = 30;
+const DEFAULT_CHECK_INTERVAL_SECS: u64 = 300;
 
 #[derive(Debug)]
 pub struct Config {
@@ -21,8 +23,9 @@ pub struct ConfigOptions {
     pub webhook_url: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 pub struct SiteList {
+    #[serde(default)]
     pub urls: Vec<String>,
 }
 
@@ -37,11 +40,14 @@ impl Config {
 
 #[derive(Debug, Deserialize)]
 struct RawConfig {
+    #[serde(default)]
     config: RawConfigOptions,
+    #[serde(default)]
     sites: SiteList,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(default)]
 struct RawConfigOptions {
     timeout_secs: u64,
     check_interval_secs: u64,
@@ -49,21 +55,48 @@ struct RawConfigOptions {
     webhook_url: Option<String>,
 }
 
-impl TryFrom<RawConfig> for Config {
-    type Error = Error;
+// Implement Default for RawConfigOptions
+impl Default for RawConfigOptions {
+    fn default() -> Self {
+        Self {
+            timeout_secs: DEFAULT_TIMEOUT_SECS,
+            check_interval_secs: DEFAULT_CHECK_INTERVAL_SECS,
+            discord_id: None,
+            webhook_url: None,
+        }
+    }
+}
 
-    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
-        // Discord ID validation: Environment variable overrides file configuration.
-        let discord_id: u64 = dotenvy::var("DISCORD_ID")
+// Builder pattern for validation
+impl Config {
+    fn validate_timeout(timeout_secs: u64) -> Result<u64, Error> {
+        if timeout_secs == 0 {
+            return Err(Error::Config("timeout_secs must be > 0".into()));
+        }
+        Ok(timeout_secs)
+    }
+
+    fn validate_check_interval(check_interval_secs: u64) -> Result<u64, Error> {
+        if !(1..86400).contains(&check_interval_secs) {
+            return Err(Error::Config(
+                "check_interval_secs must be > 0 and < 86400".into(),
+            ));
+        }
+        Ok(check_interval_secs)
+    }
+
+    fn validate_discord_id(raw_id: Option<u64>) -> Result<u64, Error> {
+        dotenvy::var("DISCORD_ID")
             .ok()
             .and_then(|v| v.parse().ok())
-            .or(raw.config.discord_id)
-            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))?;
+            .or(raw_id)
+            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))
+    }
 
-        // Webhook URL validation: Environment variable overrides file configuration.
+    fn validate_webhook_url(raw_url: Option<String>) -> Result<String, Error> {
         let webhook_url = dotenvy::var("WEBHOOK_URL")
             .ok()
-            .or(raw.config.webhook_url)
+            .or(raw_url)
             .ok_or_else(|| Error::Config("Missing webhook_url in env or file".into()))?;
 
         let parsed_url = Url::parse(&webhook_url)
@@ -73,32 +106,37 @@ impl TryFrom<RawConfig> for Config {
             || parsed_url.host_str() != Some("discord.com")
             || !parsed_url.path().starts_with("/api/webhooks/")
         {
-            return Err(Error::Config("Webhook URL must be a valid Discord webhook starting with https://discord.com/api/webhooks/".into()));
-        }
-
-        // Timout validation
-        if raw.config.timeout_secs == 0 {
-            return Err(Error::Config("timeout_secs must be > 0".into()));
-        }
-
-        // Check interval validation
-        if !(1..86400).contains(&raw.config.check_interval_secs) {
             return Err(Error::Config(
-                "check_interval_secs must be > 0 and < 86400".into(),
+                "Webhook URL must be a valid Discord webhook starting with https://discord.com/api/webhooks/".into()
             ));
         }
 
-        // Validate monitored sites URLs
-        for url in &raw.sites.urls {
-            if Url::parse(url).is_err() {
-                return Err(Error::Config(format!("Invalid URL: {}", url)));
-            }
+        Ok(webhook_url)
+    }
+
+    fn validate_urls(urls: &[String]) -> Result<(), Error> {
+        for url in urls {
+            Url::parse(url).map_err(|_| Error::Config(format!("Invalid URL: {}", url)))?;
         }
+        Ok(())
+    }
+}
+
+impl TryFrom<RawConfig> for Config {
+    type Error = Error;
+
+    fn try_from(raw: RawConfig) -> Result<Self, Self::Error> {
+        // Validate all fields
+        let timeout_secs = Config::validate_timeout(raw.config.timeout_secs)?;
+        let check_interval_secs = Config::validate_check_interval(raw.config.check_interval_secs)?;
+        let discord_id = Config::validate_discord_id(raw.config.discord_id)?;
+        let webhook_url = Config::validate_webhook_url(raw.config.webhook_url)?;
+        Config::validate_urls(&raw.sites.urls)?;
 
         Ok(Config {
             config: ConfigOptions {
-                timeout_secs: raw.config.timeout_secs,
-                check_interval_secs: raw.config.check_interval_secs,
+                timeout_secs,
+                check_interval_secs,
                 discord_id,
                 webhook_url,
             },
@@ -109,7 +147,6 @@ impl TryFrom<RawConfig> for Config {
 
 fn find_config() -> Result<PathBuf, Error> {
     let config_path = dirs::config_dir()
-        // TODO: Better error handling
         .ok_or_else(|| Error::Config("Unable to find config directory".into()))?
         .join("downdetector")
         .join("config.toml");
@@ -123,7 +160,6 @@ fn find_config() -> Result<PathBuf, Error> {
     }
 
     fs::write(&config_path, DEFAULT_CONFIG)?;
-
     Ok(config_path)
 }
 
@@ -131,7 +167,6 @@ fn find_config() -> Result<PathBuf, Error> {
 mod tests {
     use super::*;
 
-    // Maybe we should enforce it at compile time?
     #[test]
     fn example_config_is_valid() {
         let _config: Config = toml::from_str::<RawConfig>(DEFAULT_CONFIG)
@@ -148,7 +183,7 @@ mod tests {
             check_interval_secs = 60
             discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
+            
             [sites]
             urls = [
                 "https://www.google.com",
@@ -175,7 +210,51 @@ mod tests {
         );
     }
 
-    // Test invalide timeout
+    #[test]
+    fn test_partial_config_uses_defaults() {
+        // Minimal config with defaults
+        let toml_content = r#"
+            [config]
+            discord_id = 1234567890
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+            
+            [sites]
+            urls = ["https://www.google.com"]
+        "#;
+
+        let config: Config = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into()
+            .expect("Failed to convert to Config");
+
+        // Should use default values
+        assert_eq!(config.config.timeout_secs, DEFAULT_TIMEOUT_SECS);
+        assert_eq!(
+            config.config.check_interval_secs,
+            DEFAULT_CHECK_INTERVAL_SECS
+        );
+    }
+
+    #[test]
+    fn test_empty_config_section_uses_defaults() {
+        // Config with empty sections
+        let toml_content = r#"
+            [config]
+            discord_id = 1234567890
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+            
+            [sites]
+        "#;
+
+        let config: Config = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into()
+            .expect("Failed to convert to Config");
+
+        // Sites should have empty URLs vector
+        assert_eq!(config.sites.urls.len(), 0);
+    }
+
     #[test]
     fn test_invalid_timeout() {
         let toml_content = r#"
@@ -184,11 +263,9 @@ mod tests {
             check_interval_secs = 60
             discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
+            
             [sites]
-            urls = [
-                "https://www.google.com"
-            ]
+            urls = ["https://www.google.com"]
         "#;
 
         let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
@@ -198,7 +275,6 @@ mod tests {
         assert!(result.is_err(), "Expected error for invalid timeout");
     }
 
-    // Test invalid check interval
     #[test]
     fn test_invalid_check_interval() {
         let toml_content = r#"
@@ -207,11 +283,9 @@ mod tests {
             check_interval_secs = 86400
             discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
+            
             [sites]
-            urls = [
-                "https://www.google.com"
-            ]
+            urls = ["https://www.google.com"]
         "#;
 
         let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
@@ -221,9 +295,6 @@ mod tests {
         assert!(result.is_err(), "Expected error for invalid check interval");
     }
 
-    // NOTE: We do not test for invalid Discord ID since it is enforced by the type system, a snowflake ID is a u64.
-
-    // Test invalid webhook URL
     #[test]
     fn test_invalid_webhook_url() {
         let toml_content = r#"
@@ -232,11 +303,9 @@ mod tests {
             check_interval_secs = 60
             discord_id = 1234567890
             webhook_url = "invalid-url"
-
+            
             [sites]
-            urls = [
-                "https://www.google.com"
-            ]
+            urls = ["https://www.google.com"]
         "#;
 
         let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
@@ -254,11 +323,9 @@ mod tests {
             check_interval_secs = 60
             discord_id = 1234567890
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
-
+            
             [sites]
-            urls = [
-                "invalid-url"
-            ]
+            urls = ["invalid-url"]
         "#;
 
         let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
