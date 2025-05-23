@@ -1,0 +1,6 @@
+[config]
+timeout_secs = 5
+check_interval_secs = 60
+
+[sites]
+urls = []
