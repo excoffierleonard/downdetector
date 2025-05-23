@@ -17,6 +17,20 @@ pub async fn monitor_websites() {
         config.config.check_interval_secs
     );
     info!("Timeout: {} seconds", config.config.timeout_secs);
+    match (
+        config.config.webhook_url.is_some(),
+        config.config.discord_id.is_some(),
+    ) {
+        (true, true) => {
+            info!("Webhook is set, a notification will be sent on failure");
+            info!("Discord ID is set, notifications will be tagged for the user");
+        }
+        (true, false) => {
+            info!("Webhook is set, a notification will be sent on failure");
+            warn!("Discord ID is not set, notifications will not tag any user");
+        }
+        (false, _) => warn!("Webhook is not set, no notifications will be sent"),
+    }
     info!("Monitoring {} websites", config.sites.urls.len());
 
     loop {
