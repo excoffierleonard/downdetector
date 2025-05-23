@@ -19,7 +19,7 @@ pub struct Config {
 pub struct ConfigOptions {
     pub timeout_secs: u64,
     pub check_interval_secs: u64,
-    pub discord_id: u64,
+    pub discord_id: Option<u64>,
     pub webhook_url: String,
 }
 
@@ -85,12 +85,11 @@ impl Config {
         Ok(check_interval_secs)
     }
 
-    fn validate_discord_id(raw_id: Option<u64>) -> Result<u64, Error> {
-        dotenvy::var("DISCORD_ID")
+    fn validate_discord_id(raw_id: Option<u64>) -> Result<Option<u64>, Error> {
+        Ok(dotenvy::var("DISCORD_ID")
             .ok()
             .and_then(|v| v.parse().ok())
-            .or(raw_id)
-            .ok_or_else(|| Error::Config("Missing discord_id in env or file".into()))
+            .or(raw_id))
     }
 
     fn validate_webhook_url(raw_url: Option<String>) -> Result<String, Error> {
@@ -203,7 +202,7 @@ mod tests {
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
         assert_eq!(config.sites.urls[2], "https://invalid.url");
-        assert_eq!(config.config.discord_id, 1234567890);
+        assert_eq!(config.config.discord_id, Some(1234567890));
         assert_eq!(
             config.config.webhook_url,
             "https://discord.com/api/webhooks/1234567890/abcdefg".to_string()
