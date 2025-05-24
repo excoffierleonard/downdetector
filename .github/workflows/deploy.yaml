@@ -30,6 +30,4 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           DISCORD_ID: ${{ secrets.DISCORD_ID }}  
-        run: docker --context remote compose pull && \
-             docker --context remote compose down && \
-             docker --context remote compose up -d
+        run: docker --context remote compose pull && docker --context remote compose down && docker --context remote compose up -d
