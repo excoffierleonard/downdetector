@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: chaplyk/docker-compose-remote-action@v1
+      - uses: chaplyk/docker-compose-remote-action@v1.1
         env:
           WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
           DISCORD_ID: ${{ secrets.DISCORD_ID }}
