@@ -48,4 +48,4 @@ Not defining a Discord URL will result in no specific tagging inside the failure
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
