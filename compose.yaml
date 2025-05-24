@@ -4,8 +4,8 @@ services:
     build:
       context: .
     environment:
-      WEBHOOK_URL: ${WEBHOOK_URL:-}
-      DISCORD_ID: ${DISCORD_ID:-}
+      WEBHOOK_URL: ${WEBHOOK_URL}
+      DISCORD_ID: ${DISCORD_ID}
     volumes:
       - config:/.config/downdetector
 

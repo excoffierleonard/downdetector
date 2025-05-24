@@ -1,0 +1,32 @@
+name: Deploy
+
+permissions:
+  contents: read
+
+on:
+  workflow_run:
+    workflows: ["Publish"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy-docker:
+    name: Deploy Docker image to production server
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: chaplyk/docker-compose-remote-action@v1
+        env:
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          DISCORD_ID: ${{ secrets.DISCORD_ID }}
+        with:
+          ssh_host: ${{ secrets.PROD_HOST }}
+          ssh_user: ${{ secrets.PROD_USERNAME }}
+          ssh_key: ${{ secrets.PROD_SSH_KEY }}
+          compose_file: compose.yaml
+          pull: true
+          build: false

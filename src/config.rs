@@ -150,6 +150,30 @@ impl Config {
         ));
         }
 
+        // Extract webhook ID from the path
+        let path_parts: Vec<&str> = parsed_url
+            .path()
+            .strip_prefix("/api/webhooks/")
+            .unwrap_or("")
+            .split('/')
+            .collect();
+
+        // Ensure we have at least webhook_id/webhook_token
+        if path_parts.len() < 2 || path_parts[0].is_empty() || path_parts[1].is_empty() {
+            return Err(Error::Config(
+                "Webhook URL must contain both webhook ID and token".into(),
+            ));
+        }
+
+        // Validate webhook ID is a valid snowflake (parsable as u64)
+        let webhook_id = path_parts[0];
+        webhook_id.parse::<u64>().map_err(|_| {
+            Error::Config(format!(
+                "Invalid webhook ID '{}': must be a valid Discord snowflake (numeric ID)",
+                webhook_id
+            ))
+        })?;
+
         Ok(Some(webhook_url))
     }
 
