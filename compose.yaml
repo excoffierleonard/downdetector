@@ -1,6 +1,7 @@
 services:
   app:
     image: ghcr.io/excoffierleonard/downdetector:latest
+    restart: unless-stopped
     build:
       context: .
     environment:
