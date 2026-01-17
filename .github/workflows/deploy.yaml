@@ -19,15 +19,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create Docker context
-        uses: amirmarmul/docker-context-ssh-action@v1
+      - name: Copy compose file to server
+        uses: appleboy/scp-action@v1
         with:
-          ssh-host: ${{ secrets.PROD_HOST }}
-          ssh-username: ${{ secrets.PROD_USERNAME }}
-          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          source: "compose.yaml"
+          target: "/opt/${{ github.event.repository.name }}/"
 
-      - name: Redeploy Docker image over Docker context
-        env:
-          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-          DISCORD_ID: ${{ secrets.DISCORD_ID }}  
-        run: docker --context remote compose pull && docker --context remote compose down && docker --context remote compose up -d
+      - name: Deploy to production
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: ${{ secrets.PROD_USERNAME }}
+          key: ${{ secrets.PROD_SSH_KEY }}
+          script: |
+            export COMPOSE_PATH="/opt/${{ github.event.repository.name }}/compose.yaml"
+            # Create docker config directory if it doesn't exist
+            mkdir -p ~/.docker
+            # Login using docker config to avoid token in shell history
+            echo '{ "auths": { "ghcr.io": { "auth": "${{ secrets.GITHUB_TOKEN }}" } } }' > ~/.docker/config.json
+            docker compose -f $COMPOSE_PATH pull
+            docker compose -f $COMPOSE_PATH down
+            docker compose -f $COMPOSE_PATH up -d
+            # Remove the config file after we're done
+            rm ~/.docker/config.json
