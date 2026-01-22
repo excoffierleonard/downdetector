@@ -23,13 +23,8 @@ jobs:
       #     packages: musl-dev
       #     version: 1.0
 
-      - name: Add musl target
-        run: rustup target add x86_64-unknown-linux-musl
-
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
-        with:
-          cache-directories: ~/.rustup
 
       - name: Format
         run: cargo fmt --all -- --check
@@ -46,7 +41,18 @@ jobs:
       - name: Verify Documentation
         run: cargo doc --no-deps --all-features --document-private-items
 
-  publish:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-docker:
     name: Publish Docker image
     needs: ci
     if: github.ref_name == 'main' && github.event_name == 'push'
@@ -74,9 +80,9 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
-    name: Deploy to production
-    needs: publish
+  deploy-docker:
+    name: Deploy Docker image to Production Server
+    needs: publish-docker
     if: github.ref_name == 'main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     environment: production
