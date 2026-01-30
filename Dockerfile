@@ -2,7 +2,6 @@
 # Stage 1: Prepare the Recipe
 ##############################
 FROM rust:alpine AS chef
-RUN apk add --no-cache musl-dev
 RUN cargo install cargo-chef
 WORKDIR /app
 COPY . .
