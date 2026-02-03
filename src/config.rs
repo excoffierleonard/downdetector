@@ -169,24 +169,23 @@ impl Config {
         let webhook_id = path_parts[0];
         webhook_id.parse::<u64>().map_err(|_| {
             Error::Config(format!(
-                "Invalid webhook ID '{}': must be a valid Discord snowflake (numeric ID)",
-                webhook_id
+                "Invalid webhook ID '{webhook_id}': must be a valid Discord snowflake (numeric ID)"
             ))
         })?;
 
         Ok(Some(webhook_url))
     }
 
-    fn validate_discord_id(raw_id: Option<u64>) -> Result<Option<u64>, Error> {
-        Ok(dotenvy::var("DISCORD_ID")
+    fn validate_discord_id(raw_id: Option<u64>) -> Option<u64> {
+        dotenvy::var("DISCORD_ID")
             .ok()
             .and_then(|v| v.parse().ok())
-            .or(raw_id))
+            .or(raw_id)
     }
 
     fn validate_urls(urls: &[String]) -> Result<(), Error> {
         for url in urls {
-            Url::parse(url).map_err(|_| Error::Config(format!("Invalid URL: {}", url)))?;
+            Url::parse(url).map_err(|_| Error::Config(format!("Invalid URL: {url}")))?;
         }
         Ok(())
     }
@@ -200,15 +199,15 @@ impl TryFrom<RawConfig> for Config {
         let timeout_secs = Config::validate_timeout(raw.config.timeout_secs)?;
         let check_interval_secs = Config::validate_check_interval(raw.config.check_interval_secs)?;
         let webhook_url = Config::validate_webhook_url(raw.config.webhook_url)?;
-        let discord_id = Config::validate_discord_id(raw.config.discord_id)?;
+        let discord_id = Config::validate_discord_id(raw.config.discord_id);
         Config::validate_urls(&raw.sites.urls)?;
 
         Ok(Config {
             config: ConfigOptions {
                 timeout_secs,
                 check_interval_secs,
-                discord_id,
                 webhook_url,
+                discord_id,
             },
             sites: raw.sites,
         })
@@ -283,7 +282,7 @@ mod tests {
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
         assert_eq!(config.sites.urls[2], "https://invalid.url");
-        assert_eq!(config.config.discord_id, Some(1234567890));
+        assert_eq!(config.config.discord_id, Some(1_234_567_890));
         assert_eq!(
             config.config.webhook_url,
             Some("https://discord.com/api/webhooks/1234567890/abcdefg".to_string())

@@ -64,19 +64,19 @@ pub async fn monitor_websites(token: CancellationToken) {
             if let Err(e) = monitor_website_status(
                 url,
                 config.config.timeout_secs,
-                &config.config.discord_id,
-                &config.config.webhook_url,
+                config.config.discord_id.as_ref(),
+                config.config.webhook_url.as_ref(),
             )
             .await
             {
-                error!("Error checking {}: {}", url, e);
+                error!("Error checking {url}: {e}");
             }
         }
 
         // Interruptible sleep
         select! {
-            _ = sleep(Duration::from_secs(config.config.check_interval_secs)) => {},
-            _ = token.cancelled() => {
+            () = sleep(Duration::from_secs(config.config.check_interval_secs)) => {},
+            () = token.cancelled() => {
                 info!("Shutdown requested during sleep");
                 break;
             }
@@ -90,18 +90,17 @@ pub async fn monitor_websites(token: CancellationToken) {
 async fn monitor_website_status(
     url: &str,
     timeout_secs: u64,
-    discord_id: &Option<u64>,
-    webhook_url: &Option<String>,
+    discord_id: Option<&u64>,
+    webhook_url: Option<&String>,
 ) -> Result<(), Error> {
-    match is_url_up(url, timeout_secs).await? {
-        true => info!("{}: UP", url),
-        false => {
-            warn!("{}: DOWN", url);
+    if is_url_up(url, timeout_secs).await? {
+        info!("{url}: UP");
+    } else {
+        warn!("{url}: DOWN");
 
-            if let Some(webhook) = webhook_url {
-                let message = format!("Alert: {} is DOWN!", url);
-                send_discord_notification(webhook, &message, discord_id).await?;
-            }
+        if let Some(webhook) = webhook_url {
+            let message = format!("Alert: {url} is DOWN!");
+            send_discord_notification(webhook, &message, discord_id).await?;
         }
     }
     Ok(())
@@ -130,15 +129,15 @@ struct DiscordMessage {
 async fn send_discord_notification(
     webhook_url: &str,
     message: &str,
-    discord_id: &Option<u64>,
+    discord_id: Option<&u64>,
 ) -> Result<(), Error> {
     let client = Client::new();
 
     // If discord_id is None, we don't want to mention anyone
-    let tag = discord_id.map_or(String::new(), |id| format!("<@{}> ", id));
+    let tag = discord_id.map_or(String::new(), |id| format!("<@{id}> "));
 
     let payload = DiscordMessage {
-        content: format!("{}{}", tag, message).to_string(),
+        content: format!("{tag}{message}").to_string(),
     };
 
     client.post(webhook_url).json(&payload).send().await?;
@@ -172,7 +171,7 @@ mod tests {
             .parse()
             .expect("Invalid DISCORD_ID");
         let message = "Test notification from Rust!";
-        let result = send_discord_notification(&webhook_url, message, &Some(discord_id)).await;
+        let result = send_discord_notification(&webhook_url, message, Some(&discord_id)).await;
         assert!(
             result.is_ok(),
             "Expected notification to be sent successfully"
