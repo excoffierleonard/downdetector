@@ -8,6 +8,7 @@
 //! - Periodic monitoring of multiple websites
 //! - Configurable check intervals and timeouts
 //! - Consecutive failure threshold to reduce false positives
+//! - Automatic 10-second retries for unreachable sites
 //! - Discord webhook integration for downtime alerts
 //! - Optional user mentions in Discord notifications
 //! - Automatic configuration file creation with sensible defaults
@@ -36,6 +37,9 @@
 //!     "https://another-site.com"
 //! ]
 //! ```
+//!
+//! Sites that fail a check are retried every 10 seconds until they recover.
+//! Repeat downtime alerts remain throttled by `check_interval_secs`.
 //!
 //! # Environment Variables
 //!
