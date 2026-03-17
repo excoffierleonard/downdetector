@@ -1,7 +1,7 @@
 use log::{error, info, warn};
 use reqwest::Client;
 use serde::Serialize;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use tokio::{select, time::sleep};
 use tokio_util::sync::CancellationToken;
 
@@ -17,8 +17,9 @@ use crate::error::Error;
 ///
 /// - Loads configuration from the default config file location
 /// - Checks each configured URL for availability
-/// - Logs the status of each site (UP/DOWN)
-/// - Sends Discord webhook notifications for DOWN sites (if configured)
+/// - Tracks consecutive failures per site to reduce false positives
+/// - Logs the status of each site (UP/UNREACHABLE/DOWN)
+/// - Sends Discord webhook notifications for sites that stay down long enough
 /// - Sleeps for the configured interval before the next check cycle
 ///
 /// # Panics
@@ -26,6 +27,7 @@ use crate::error::Error;
 /// Panics if the configuration cannot be loaded at startup.
 pub async fn monitor_websites(token: CancellationToken) {
     let config = Config::load().expect("Failed to load configuration");
+    let mut failure_counts = HashMap::with_capacity(config.sites.urls.len());
 
     // Intial Configuration Logging
     info!("Starting website monitoring...");
@@ -34,6 +36,10 @@ pub async fn monitor_websites(token: CancellationToken) {
         config.config.check_interval_secs
     );
     info!("Timeout: {} seconds", config.config.timeout_secs);
+    info!(
+        "Failure threshold: {} consecutive failed checks",
+        config.config.failure_threshold
+    );
     match (
         config.config.webhook_url.is_some(),
         config.config.discord_id.is_some(),
@@ -64,6 +70,8 @@ pub async fn monitor_websites(token: CancellationToken) {
             if let Err(e) = monitor_website_status(
                 url,
                 config.config.timeout_secs,
+                config.config.failure_threshold,
+                &mut failure_counts,
                 config.config.discord_id.as_ref(),
                 config.config.webhook_url.as_ref(),
             )
@@ -90,20 +98,79 @@ pub async fn monitor_websites(token: CancellationToken) {
 async fn monitor_website_status(
     url: &str,
     timeout_secs: u64,
+    failure_threshold: u64,
+    failure_counts: &mut HashMap<String, u64>,
     discord_id: Option<&u64>,
     webhook_url: Option<&String>,
 ) -> Result<(), Error> {
-    if is_url_up(url, timeout_secs).await? {
-        info!("{url}: UP");
-    } else {
-        warn!("{url}: DOWN");
+    let is_up = is_url_up(url, timeout_secs).await?;
 
-        if let Some(webhook) = webhook_url {
-            let message = format!("Alert: {url} is DOWN!");
-            send_discord_notification(webhook, &message, discord_id).await?;
+    match record_site_check(failure_counts, url, is_up, failure_threshold) {
+        SiteCheckStatus::Up {
+            recovered_after_failures: 0,
+        } => info!("{url}: UP"),
+        SiteCheckStatus::Up {
+            recovered_after_failures,
+        } => info!(
+            "{url}: UP (recovered after {recovered_after_failures} consecutive failed checks)"
+        ),
+        SiteCheckStatus::Unreachable {
+            consecutive_failures,
+            failure_threshold,
+            should_alert: false,
+        } => warn!(
+            "{url}: UNREACHABLE ({consecutive_failures}/{failure_threshold} consecutive failed checks before alerting)"
+        ),
+        SiteCheckStatus::Unreachable {
+            consecutive_failures,
+            should_alert: true,
+            ..
+        } => {
+            warn!("{url}: DOWN ({consecutive_failures} consecutive failed checks)");
+
+            if let Some(webhook) = webhook_url {
+                let message = format!("Alert: {url} is DOWN!");
+                send_discord_notification(webhook, &message, discord_id).await?;
+            }
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SiteCheckStatus {
+    Up {
+        recovered_after_failures: u64,
+    },
+    Unreachable {
+        consecutive_failures: u64,
+        failure_threshold: u64,
+        should_alert: bool,
+    },
+}
+
+fn record_site_check(
+    failure_counts: &mut HashMap<String, u64>,
+    url: &str,
+    is_up: bool,
+    failure_threshold: u64,
+) -> SiteCheckStatus {
+    if is_up {
+        return SiteCheckStatus::Up {
+            recovered_after_failures: failure_counts.remove(url).unwrap_or(0),
+        };
+    }
+
+    let consecutive_failures = failure_counts
+        .entry(url.to_string())
+        .and_modify(|count| *count += 1)
+        .or_insert(1);
+
+    SiteCheckStatus::Unreachable {
+        consecutive_failures: *consecutive_failures,
+        failure_threshold,
+        should_alert: *consecutive_failures >= failure_threshold,
+    }
 }
 
 /// Asynchronously checks if a given URL is up (returns a 2xx status).
@@ -147,6 +214,83 @@ async fn send_discord_notification(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_failures_do_not_alert_before_threshold() {
+        let url = "https://example.com";
+        let mut failure_counts = HashMap::new();
+
+        for expected_failures in 1..5 {
+            let status = record_site_check(&mut failure_counts, url, false, 5);
+            assert_eq!(
+                status,
+                SiteCheckStatus::Unreachable {
+                    consecutive_failures: expected_failures,
+                    failure_threshold: 5,
+                    should_alert: false,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn test_threshold_and_later_failures_alert() {
+        let url = "https://example.com";
+        let mut failure_counts = HashMap::new();
+
+        for _ in 0..4 {
+            record_site_check(&mut failure_counts, url, false, 5);
+        }
+
+        let threshold_status = record_site_check(&mut failure_counts, url, false, 5);
+        assert_eq!(
+            threshold_status,
+            SiteCheckStatus::Unreachable {
+                consecutive_failures: 5,
+                failure_threshold: 5,
+                should_alert: true,
+            }
+        );
+
+        let later_status = record_site_check(&mut failure_counts, url, false, 5);
+        assert_eq!(
+            later_status,
+            SiteCheckStatus::Unreachable {
+                consecutive_failures: 6,
+                failure_threshold: 5,
+                should_alert: true,
+            }
+        );
+    }
+
+    #[test]
+    fn test_success_resets_failure_count() {
+        let url = "https://example.com";
+        let mut failure_counts = HashMap::new();
+
+        for _ in 0..3 {
+            record_site_check(&mut failure_counts, url, false, 5);
+        }
+
+        let recovered = record_site_check(&mut failure_counts, url, true, 5);
+        assert_eq!(
+            recovered,
+            SiteCheckStatus::Up {
+                recovered_after_failures: 3,
+            }
+        );
+
+        let next_failure = record_site_check(&mut failure_counts, url, false, 5);
+        assert_eq!(
+            next_failure,
+            SiteCheckStatus::Unreachable {
+                consecutive_failures: 1,
+                failure_threshold: 5,
+                should_alert: false,
+            }
+        );
+    }
 
     #[tokio::test]
     async fn test_google_is_up() {
