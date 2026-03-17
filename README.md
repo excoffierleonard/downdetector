@@ -32,6 +32,8 @@ urls = [
 
 `failure_threshold` controls how many failed checks in a row are required before a site is considered down and Discord alerts are sent. The default is `5`, which suppresses one-off network hiccups and other false positives.
 
+Once a site becomes unreachable, it is retried every 10 seconds until it recovers. Each failed retry increments the same consecutive failure counter. After a site is considered down, repeat Discord alerts stay on the configured `check_interval_secs` cadence instead of the 10-second retry cadence.
+
 You may also override or directly define the private values by environment variable / .env:
 
 - `WEBHOOK_URL`: The api endpoint where to send the notification to. [More Information](https://support.discord.com/hc/en-us/articles/228383668-Intro-to-Webhooks)
@@ -45,6 +47,7 @@ Not defining a Discord URL will result in no specific tagging inside the failure
 
 - Automated website availability monitoring
 - Consecutive failure threshold to reduce false positives
+- Fast 10-second retries for unreachable sites
 - Discord notifications for downtime alerts
 - Configurable monitoring parameters
 - Lightweight and efficient Rust implementation
