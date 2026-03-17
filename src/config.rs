@@ -8,6 +8,7 @@ const DEFAULT_CONFIG: &str = include_str!("../config.default.toml");
 // Default values as constants
 const DEFAULT_TIMEOUT_SECS: u64 = 30;
 const DEFAULT_CHECK_INTERVAL_SECS: u64 = 300;
+const DEFAULT_FAILURE_THRESHOLD: u64 = 5;
 
 /// Configuration structure for the downtime detector application.
 ///
@@ -24,7 +25,8 @@ pub struct Config {
 /// Application configuration options.
 ///
 /// These options control the behavior of the downtime detector,
-/// including timeouts, check intervals, and Discord notification settings.
+/// including timeouts, check intervals, false-positive protection,
+/// and Discord notification settings.
 #[derive(Debug)]
 pub struct ConfigOptions {
     /// HTTP request timeout in seconds.
@@ -33,6 +35,9 @@ pub struct ConfigOptions {
     /// Interval between site checks in seconds.
     /// Must be between 1 and 86399 (inclusive).
     pub check_interval_secs: u64,
+    /// Number of consecutive failed checks required before a site is considered down.
+    /// Must be greater than 0.
+    pub failure_threshold: u64,
     /// Discord webhook URL for sending notifications.
     /// Must be a valid Discord webhook URL starting with `https://discord.com/api/webhooks/`.
     /// Can also be set via the `WEBHOOK_URL` environment variable.
@@ -98,6 +103,7 @@ struct RawConfig {
 struct RawConfigOptions {
     timeout_secs: u64,
     check_interval_secs: u64,
+    failure_threshold: u64,
     webhook_url: Option<String>,
     discord_id: Option<u64>,
 }
@@ -108,6 +114,7 @@ impl Default for RawConfigOptions {
         Self {
             timeout_secs: DEFAULT_TIMEOUT_SECS,
             check_interval_secs: DEFAULT_CHECK_INTERVAL_SECS,
+            failure_threshold: DEFAULT_FAILURE_THRESHOLD,
             webhook_url: None,
             discord_id: None,
         }
@@ -130,6 +137,13 @@ impl Config {
             ));
         }
         Ok(check_interval_secs)
+    }
+
+    fn validate_failure_threshold(failure_threshold: u64) -> Result<u64, Error> {
+        if failure_threshold == 0 {
+            return Err(Error::Config("failure_threshold must be > 0".into()));
+        }
+        Ok(failure_threshold)
     }
 
     fn validate_webhook_url(raw_url: Option<String>) -> Result<Option<String>, Error> {
@@ -198,6 +212,7 @@ impl TryFrom<RawConfig> for Config {
         // Validate all fields
         let timeout_secs = Config::validate_timeout(raw.config.timeout_secs)?;
         let check_interval_secs = Config::validate_check_interval(raw.config.check_interval_secs)?;
+        let failure_threshold = Config::validate_failure_threshold(raw.config.failure_threshold)?;
         let webhook_url = Config::validate_webhook_url(raw.config.webhook_url)?;
         let discord_id = Config::validate_discord_id(raw.config.discord_id);
         Config::validate_urls(&raw.sites.urls)?;
@@ -206,6 +221,7 @@ impl TryFrom<RawConfig> for Config {
             config: ConfigOptions {
                 timeout_secs,
                 check_interval_secs,
+                failure_threshold,
                 webhook_url,
                 discord_id,
             },
@@ -260,6 +276,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 60
+            failure_threshold = 5
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
             discord_id = 1234567890
             
@@ -278,6 +295,7 @@ mod tests {
 
         assert_eq!(config.config.timeout_secs, 5);
         assert_eq!(config.config.check_interval_secs, 60);
+        assert_eq!(config.config.failure_threshold, 5);
         assert_eq!(config.sites.urls.len(), 3);
         assert_eq!(config.sites.urls[0], "https://www.google.com");
         assert_eq!(config.sites.urls[1], "https://www.rust-lang.org");
@@ -312,6 +330,7 @@ mod tests {
             config.config.check_interval_secs,
             DEFAULT_CHECK_INTERVAL_SECS
         );
+        assert_eq!(config.config.failure_threshold, DEFAULT_FAILURE_THRESHOLD);
     }
 
     #[test]
@@ -360,6 +379,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 86400
+            failure_threshold = 5
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
             discord_id = 1234567890
             
@@ -375,11 +395,36 @@ mod tests {
     }
 
     #[test]
+    fn test_invalid_failure_threshold() {
+        let toml_content = r#"
+            [config]
+            timeout_secs = 5
+            check_interval_secs = 60
+            failure_threshold = 0
+            webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
+            discord_id = 1234567890
+
+            [sites]
+            urls = ["https://www.google.com"]
+        "#;
+
+        let result: Result<Config, Error> = toml::from_str::<RawConfig>(toml_content)
+            .expect("Failed to parse config")
+            .try_into();
+
+        assert!(
+            result.is_err(),
+            "Expected error for invalid failure threshold"
+        );
+    }
+
+    #[test]
     fn test_invalid_webhook_url() {
         let toml_content = r#"
             [config]
             timeout_secs = 5
             check_interval_secs = 60
+            failure_threshold = 5
             webhook_url = "invalid-url"
             discord_id = 1234567890
             
@@ -400,6 +445,7 @@ mod tests {
             [config]
             timeout_secs = 5
             check_interval_secs = 60
+            failure_threshold = 5
             webhook_url = "https://discord.com/api/webhooks/1234567890/abcdefg"
             discord_id = 1234567890
             

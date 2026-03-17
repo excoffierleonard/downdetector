@@ -7,6 +7,7 @@
 //!
 //! - Periodic monitoring of multiple websites
 //! - Configurable check intervals and timeouts
+//! - Consecutive failure threshold to reduce false positives
 //! - Discord webhook integration for downtime alerts
 //! - Optional user mentions in Discord notifications
 //! - Automatic configuration file creation with sensible defaults
@@ -25,6 +26,7 @@
 //! [config]
 //! timeout_secs = 30
 //! check_interval_secs = 300
+//! failure_threshold = 5
 //! webhook_url = "https://discord.com/api/webhooks/..."
 //! discord_id = 123456789
 //!
