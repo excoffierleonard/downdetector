@@ -306,9 +306,7 @@ async fn is_url_up(url: &str, timeout_secs: u64) -> Result<bool, Error> {
         .get(url)
         .send()
         .await
-        .map(|resp| resp.status().is_success())
-        // We unwrap here since we have no way of distinguishing between a network error and a real down on the server side
-        .unwrap_or(false))
+        .is_ok_and(|resp| resp.status().is_success()))
 }
 
 #[derive(Serialize)]
@@ -458,7 +456,7 @@ mod tests {
             false,
             5,
             60,
-            started_at + Duration::from_secs(60),
+            started_at + Duration::from_mins(1),
         );
         assert_eq!(
             next_failure,
@@ -477,7 +475,7 @@ mod tests {
         site_state.schedule_next_check(checked_at, 60);
         assert_eq!(
             site_state.next_check_at.duration_since(checked_at),
-            Duration::from_secs(60)
+            Duration::from_mins(1)
         );
 
         site_state.consecutive_failures = 1;
@@ -494,7 +492,7 @@ mod tests {
         let healthy_site = SiteState {
             consecutive_failures: 0,
             last_alert_at: None,
-            next_check_at: now + Duration::from_secs(60),
+            next_check_at: now + Duration::from_mins(1),
         };
         let failing_site = SiteState {
             consecutive_failures: 1,
